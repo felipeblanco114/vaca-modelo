@@ -1,6 +1,8 @@
-import { Suspense, useEffect, useMemo, useState } from 'react'
-import { Canvas } from '@react-three/fiber'
-import { OrbitControls, Bounds, Center, useGLTF } from '@react-three/drei'
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import * as THREE from 'three'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { OrbitControls, useGLTF } from '@react-three/drei'
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import { getCow } from '../three/cowBuilder.js'
 import { makeCutMaterials } from '../three/materials.js'
 
@@ -20,9 +22,50 @@ export function useModelUrl(id) {
   return url
 }
 
+// Luz ambiente de estudio generada por código (sin descargar nada): da reflejos y evita modelos oscuros
+function StudioLight() {
+  const { gl, scene } = useThree()
+  useEffect(() => {
+    const pmrem = new THREE.PMREMGenerator(gl)
+    const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
+    scene.environment = env
+    return () => { scene.environment = null; env.dispose(); pmrem.dispose() }
+  }, [gl, scene])
+  return null
+}
+
+// Centra el contenido y lo lleva a un tamaño fijo. layFlat: apoya la pieza sobre su cara más grande.
+function Fitted({ children, layFlat, paused }) {
+  const outer = useRef(), inner = useRef()
+  // gira sola; se detiene mientras la persona la mueve
+  useFrame((_, dt) => { if (!paused.current) outer.current.rotation.y += dt * 0.45 })
+  useLayoutEffect(() => {
+    const o = outer.current, g = inner.current
+    o.scale.setScalar(1); g.rotation.set(0, 0, 0); g.position.set(0, 0, 0)
+    o.updateMatrixWorld(true)
+    const box = new THREE.Box3().setFromObject(g)
+    const size = box.getSize(new THREE.Vector3())
+    if (layFlat) {
+      if (size.x <= size.y && size.x <= size.z) g.rotation.z = Math.PI / 2
+      else if (size.z <= size.x && size.z <= size.y) g.rotation.x = -Math.PI / 2
+      o.updateMatrixWorld(true)
+      box.setFromObject(g)
+      box.getSize(size)
+    }
+    g.position.sub(box.getCenter(new THREE.Vector3()))
+    o.scale.setScalar(2.3 / Math.max(size.x, size.y, size.z))
+  })
+  return <group ref={outer}><group ref={inner}>{children}</group></group>
+}
+
 // Modelo realista (escaneado o generado a partir de una foto)
 function ScannedModel({ url }) {
   const { scene } = useGLTF(url, false)
+  useMemo(() => {
+    scene.traverse((o) => {
+      if (o.isMesh && o.material) { o.material.metalness = 0; o.material.roughness = 0.55 }
+    })
+  }, [scene])
   return <primitive object={scene} />
 }
 
@@ -36,20 +79,19 @@ function GeneratedPiece({ id }) {
 }
 
 export default function CutModel3D({ id, modelUrl }) {
+  const paused = useRef(false)
   return (
     <div className="model3d">
-      <Canvas camera={{ position: [2.2, 1.6, 3.2], fov: 32 }} dpr={[1, 2]}>
-        <hemisphereLight args={['#fff6e8', '#b08a70', 1.5]} />
-        <directionalLight position={[3, 6, 5]} intensity={2.2} />
-        <directionalLight position={[-4, 2, -5]} intensity={1} />
+      <Canvas camera={{ position: [2.4, 2.5, 3.4], fov: 30 }} dpr={[1, 2]}>
+        <StudioLight />
+        <hemisphereLight args={['#fff6e8', '#b08a70', 0.7]} />
+        <directionalLight position={[3, 6, 5]} intensity={1.6} />
         <Suspense fallback={null}>
-          <Bounds key={id + (modelUrl || '')} fit clip observe margin={1.25}>
-            <Center>
-              {modelUrl ? <ScannedModel url={modelUrl} /> : <GeneratedPiece id={id} />}
-            </Center>
-          </Bounds>
+          <Fitted key={id + (modelUrl || '')} layFlat={!!modelUrl} paused={paused}>
+            {modelUrl ? <ScannedModel url={modelUrl} /> : <GeneratedPiece id={id} />}
+          </Fitted>
         </Suspense>
-        <OrbitControls makeDefault autoRotate autoRotateSpeed={1.6} enablePan={false} />
+        <OrbitControls makeDefault enablePan={false} minDistance={2.5} maxDistance={9} onStart={() => { paused.current = true }} onEnd={() => { paused.current = false }} />
       </Canvas>
     </div>
   )
