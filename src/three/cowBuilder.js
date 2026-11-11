@@ -18,7 +18,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 export const S = 0.01 // escala: unidades del póster → unidades 3D
 const CX = 450
 const GROUND = 452
-const P3 = (x, y, z = 0) => [(x - CX) * S, (GROUND - y) * S, z * S]
+export const P3 = (x, y, z = 0) => [(x - CX) * S, (GROUND - y) * S, z * S]
 export const BODY_CENTER = new THREE.Vector3(...P3(450, 232, 0))
 
 /* ---------- perfil del cuerpo ---------- */
@@ -234,7 +234,7 @@ const merge = (list) => (list.length === 1 ? list[0] : mergeGeometries(list, fal
 
 /* ---------- definición de los cortes ---------- */
 // d: [d0, d1] profundidad. Sin d = pieza completa, de la columna a la superficie.
-const BODY_CUTS = {
+export const BODY_CUTS = {
   aguja: [{ p: '112,88 282,88 286,176 205,190 172,215 112,236' }],
   bife_ancho: [{ p: '282,88 392,88 392,185 300,185 286,176' }],
   bife_angosto: [

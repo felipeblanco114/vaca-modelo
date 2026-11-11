@@ -33,6 +33,7 @@ src/
   three/
     cowBuilder.js            → arma la vaca 3D: perfil del cuerpo, forma y profundidad de cada corte
     materials.js             → materiales de cada corte, compartidos por la vaca y la ficha
+    scanCow.js               → carga public/models/cow.glb (vaca realista) y la parte en cortes automáticamente
     textures.js              → texturas de músculo (con relieve de fibras), carne, tendón y pelaje
 public/
   cuts/                      → fotos reales de los cortes (opcional)
@@ -45,6 +46,10 @@ Poné un archivo `.glb` en `public/models/` con el **id** del corte, por ejemplo
 Dos formas de conseguirlos:
 - **Foto → 3D con IA** (Higgsfield, Meshy, Tripo): una foto del corte sobre fondo blanco.
 - **Escaneo real** con el celular (Polycam, Scaniverse): es lo más fiel; se hace en la carnicería dando una vuelta alrededor del corte.
+
+## Usar un modelo realista de la vaca
+
+Si existe `public/models/cow.glb`, el visor lo carga, lo parte en cortes y lo muestra como modelo "Realista" (se puede volver a la vaca "Generada" desde el control Modelo). Para cambiarlo por uno de mejor calidad alcanza con reemplazar ese archivo: tiene que ser una vaca de pie, entera. Para volver a la versión anterior, borrá el archivo.
 
 ## Agregar fotos reales de los cortes
 
@@ -63,10 +68,18 @@ Si la foto existe, la ficha la muestra. Si no, muestra la ilustración. Los ids 
 1. Agregá el corte a `CUTS` (o a `ACHURAS` si es interno) en `src/data/cuts.js`.
 2. Si va sobre la vaca, agregá su forma en `CUT_SHAPES` y su nombre en `LABELS` dentro de `src/data/cowGeometry.js`.
 
-## Publicación
+## Subir a GitHub
 
-El repo publica solo en GitHub Pages con cada push a `main` (ver `.github/workflows/deploy.yml`).
-Hay que activarlo una vez: **Settings → Pages → Source: GitHub Actions**.
+```bash
+git init
+git add .
+git commit -m "La Vaca: primera versión"
+git branch -M main
+git remote add origin https://github.com/TU_USUARIO/la-vaca.git
+git push -u origin main
+```
+
+Para publicarla gratis podés conectar el repo a Vercel o Netlify (build: `npm run build`, carpeta: `dist`).
 
 ## Próximos pasos
 

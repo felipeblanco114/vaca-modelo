@@ -5,6 +5,8 @@ import { OrbitControls, Html, ContactShadows } from '@react-three/drei'
 import { getCow } from '../three/cowBuilder.js'
 import { tendonTexture, furTexture } from '../three/textures.js'
 import { makeCutMaterials, muscleTex, rotated } from '../three/materials.js'
+import { loadScanCow } from '../three/scanCow.js'
+import { useModelUrl } from './CutModel3D.jsx'
 import { CUTS_BY_ID } from '../data/cuts.js'
 
 const EXPLODE_K = 0.8 // cuánto se alejan las piezas con el control al máximo
@@ -36,15 +38,16 @@ function CutMesh({ piece, material, explode, hidden, ghost, onSelect, onHover })
 
 // Aleja la cámara en pantallas angostas para que la vaca entre completa
 const CAM_DIR = new THREE.Vector3(-4.2, 1.7, 10.2)
-function FitCamera({ controlsRef }) {
+function FitCamera({ controlsRef, target = TARGET, zoom = 1 }) {
   const { camera, size } = useThree()
   useEffect(() => {
-    const k = Math.max(1, 1.35 / (size.width / size.height))
-    camera.position.set(...TARGET).addScaledVector(CAM_DIR, k)
-    camera.lookAt(...TARGET)
+    const k = Math.max(1, 1.35 / (size.width / size.height)) * zoom
+    camera.position.set(...target).addScaledVector(CAM_DIR, k)
+    camera.lookAt(...target)
+    if (controlsRef.current) controlsRef.current.target.set(...target)
     controlsRef.current?.update()
     controlsRef.current?.saveState()
-  }, [camera, size.width, size.height, controlsRef])
+  }, [camera, size.width, size.height, controlsRef, target, zoom])
   return null
 }
 
@@ -54,7 +57,10 @@ function Scene({ cow, selected, onSelect, filter, mode, explode, isolate, hidden
   // un juego de materiales por corte, para poder resaltar o atenuar cada uno
   const mats = useMemo(() => {
     const out = {}
-    for (const id of new Set(cow.pieces.map((p) => p.id))) out[id] = makeCutMaterials(id)
+    for (const id of new Set(cow.pieces.map((p) => p.id))) {
+      out[id] = makeCutMaterials(id)
+      if (cow.scanMaterial) out[id].scan = cow.scanMaterial.clone() // superficie del modelo realista
+    }
     return out
   }, [cow])
 
@@ -115,14 +121,18 @@ function Scene({ cow, selected, onSelect, filter, mode, explode, isolate, hidden
         <CutMesh
           key={i}
           piece={p}
-          material={p.hasOuter ? [mats[p.id].outer, mats[p.id].meat] : mats[p.id].meat}
+          material={p.kind === 'scan' ? mats[p.id].scan : p.hasOuter ? [mats[p.id].outer, mats[p.id].meat] : mats[p.id].meat}
           explode={explode}
-          hidden={hiddenIds.has(p.id)}
+          // los cortes internos del modelo realista aparecen al separar, aislar o elegirlos
+          hidden={hiddenIds.has(p.id) || (p.internal && explode < 0.03 && !isolate && selected !== p.id)}
           ghost={isGhost(p.id)}
           onSelect={onSelect}
           onHover={setHovered}
         />
       ))}
+
+      {/* partes del modelo realista que no son cortes: cabeza, canillas */}
+      {cow.rest?.map((r, i) => <mesh key={i} geometry={r.geometry} material={cow.scanMaterial} raycast={() => null} />)}
 
       {/* cuero: no intercepta los toques, así se puede tocar la vaca y ver qué corte hay debajo */}
       <group visible={mode !== 'carne'}>
@@ -144,7 +154,7 @@ function Scene({ cow, selected, onSelect, filter, mode, explode, isolate, hidden
         </Html>
       )}
 
-      <FitCamera controlsRef={controlsRef} />
+      <FitCamera controlsRef={controlsRef} target={cow.view?.target} zoom={cow.view?.zoom} />
       <ContactShadows position={[0, -0.02, 0]} scale={12} blur={2.4} opacity={0.35} far={4} />
       <OrbitControls ref={controlsRef} makeDefault target={TARGET} minDistance={2.5} maxDistance={30} maxPolarAngle={Math.PI * 0.62} />
     </>
@@ -152,7 +162,17 @@ function Scene({ cow, selected, onSelect, filter, mode, explode, isolate, hidden
 }
 
 export default function Cow3D({ selected, onSelect, filter }) {
-  const cow = useMemo(() => getCow(), [])
+  // variante: 'gen' = vaca generada por código · 'scan' = modelo realista (public/models/cow.glb)
+  const scanUrl = useModelUrl('cow')
+  const [variant, setVariant] = useState('gen')
+  const [scanCow, setScanCow] = useState(null)
+  useEffect(() => {
+    if (!scanUrl) return
+    let alive = true
+    loadScanCow(scanUrl).then((c) => { if (alive) { setScanCow(c); setVariant('scan') } }).catch((e) => console.warn('No se pudo cargar cow.glb', e))
+    return () => { alive = false }
+  }, [scanUrl])
+  const cow = variant === 'scan' && scanCow ? scanCow : getCow()
   const [mode, setMode] = useState('carne') // cuero | trans | carne
   const [explode, setExplode] = useState(0)
   const [isolate, setIsolate] = useState(false)
@@ -184,7 +204,16 @@ export default function Cow3D({ selected, onSelect, filter }) {
       </div>
 
       <div className="controls3d">
-        <div className="ctl">
+        {scanCow && (
+          <div className="ctl">
+            <span>Modelo</span>
+            <div className="seg">
+              <button className={variant === 'scan' ? 'on' : ''} onClick={() => setVariant('scan')}>Realista</button>
+              <button className={variant === 'gen' ? 'on' : ''} onClick={() => setVariant('gen')}>Generada</button>
+            </div>
+          </div>
+        )}
+        <div className="ctl" hidden={variant === 'scan' && !!scanCow}>
           <span>Cuero</span>
           <div className="seg">
             {[['cuero', 'Con cuero'], ['trans', 'Transparente'], ['carne', 'Sin cuero']].map(([k, v]) => (
