@@ -68,18 +68,10 @@ Si la foto existe, la ficha la muestra. Si no, muestra la ilustración. Los ids 
 1. Agregá el corte a `CUTS` (o a `ACHURAS` si es interno) en `src/data/cuts.js`.
 2. Si va sobre la vaca, agregá su forma en `CUT_SHAPES` y su nombre en `LABELS` dentro de `src/data/cowGeometry.js`.
 
-## Subir a GitHub
+## Publicación
 
-```bash
-git init
-git add .
-git commit -m "La Vaca: primera versión"
-git branch -M main
-git remote add origin https://github.com/TU_USUARIO/la-vaca.git
-git push -u origin main
-```
-
-Para publicarla gratis podés conectar el repo a Vercel o Netlify (build: `npm run build`, carpeta: `dist`).
+El repo publica solo en GitHub Pages con cada push a `main` (ver `.github/workflows/deploy.yml`).
+Hay que activarlo una vez: **Settings → Pages → Source: GitHub Actions**.
 
 ## Próximos pasos
 
